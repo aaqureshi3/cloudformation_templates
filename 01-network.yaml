@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description:
+  "Create network resources for DEV environment"
+
+Parameters:
+  VpcCidrBlock:
+    Type: String
+  PublicSubnet1Cidr:
+    Type: String
+  PublicSubnet2Cidr:
+    Type: String
+  PrivateSubnet1Cidr:
+    Type: String
+  PrivateSubnet2Cidr:
+    Type: String
+  PrimaryAz:
+    Type: String
+  SecondaryAz:
+    Type: String
+
+Resources:
+  DevVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidrBlock
+      InstanceTenancy: default
+      Tags:
+        - Key: "name"
+          Value: "dev-jenkins-vpc"
+  
+  DevIgw:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: "name"
+          Value: "dev-jenkins-igw"
+
+  IgwAttachement:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref DevIgw
+      VpcId: !Ref DevVpc
+    DependsOn:
+      - DevVpc
+      - DevIgw
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      Tags: 
+        - Key: "name"
+          Value: "dev-jenkins-public-rtb"
+      VpcId: !Ref DevVpc
+    DependsOn:
+      - DevVpc
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      Tags: 
+        - Key: "name"
+          Value: "dev-jenkins-private-rtb"
+      VpcId: !Ref DevVpc
+    DependsOn:
+      - DevVpc
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref PublicRouteTable
+      GatewayId: !Ref DevIgw
+    DependsOn:
+      - DevIgw
+      - PublicRouteTable
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref PrimaryAz
+      CidrBlock: !Ref PublicSubnet1Cidr
+      VpcId: !Ref DevVpc
+      Tags:
+        - Key: "name"
+          Value: "dev-jenkins-public-subnet-1"
+    DependsOn:
+      - DevVpc
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref SecondaryAz
+      CidrBlock: !Ref PublicSubnet2Cidr
+      VpcId: !Ref DevVpc
+      Tags:
+        - Key: "name"
+          Value: "dev-jenkins-public-subnet-2"
+    DependsOn:
+      - DevVpc
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref PrimaryAz
+      CidrBlock: !Ref PrivateSubnet1Cidr
+      VpcId: !Ref DevVpc
+      Tags:
+        - Key: "name"
+          Value: "dev-jenkins-private-subnet-1"
+    DependsOn:
+      - DevVpc
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref SecondaryAz
+      CidrBlock: !Ref PrivateSubnet2Cidr
+      VpcId: !Ref DevVpc
+      Tags:
+        - Key: "name"
+          Value: "dev-jenkins-private-subnet-2"
+    DependsOn:
+      - DevVpc
+
+  RtbAssc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+    DependsOn:
+      - PublicRoute
+
+  RtbAssc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+    DependsOn:
+      - PublicRoute
+
+  RtbAssc3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet1
+    DependsOn:
+      - PrivateSubnet1
+      - PrivateRouteTable
+
+  RtbAssc4:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet2
+    DependsOn:
+      - PrivateSubnet2
+      - PrivateRouteTable

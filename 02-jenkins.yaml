@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description:
+  "Create Jenkins server in DEV environment"
+
+Parameters:
+  IpAddress:
+    Type: String
+    Description: Allow access to Jenkins from this address
+  JenkinsSubnet:
+    Type: String
+    Description: Subnet for Jenkins server
+  JenkinsVpc:
+    Type: String
+    Description: Vpc for Jenkins server
+  JenkinsKey:
+    Type: String
+    Description: Key to access Jenkins server
+  JenkinsEc2Az:
+    Type: String
+    Description: Availability Zone in which Jenkins server is created
+
+Resources:
+  JenkinsEc2:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: !Ref JenkinsEc2Az
+      ImageId: "ami-088ff0e3bde7b3fdf"
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          DeviceIndex: "0"
+          SubnetId: !Ref JenkinsSubnet
+          GroupSet: 
+            - !Ref JenkinsSg
+      InstanceType: "t3.micro"
+      KeyName: !Ref JenkinsKey
+      UserData: 
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -xe
+            sudo yum update -y
+            sudo yum install docker -y
+            sudo systemctl start docker
+            sudo systemctl enable docker
+            sudo docker pull jenkins/jenkins:lts
+            sudo docker run --publish 443:8080 --detach --name jenkins jenkins/jenkins:lts
+            yum install -y aws-cfn-bootstrap
+            /bin/touch /tmp/done.txt
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource JenkinsEc2 --region ${AWS::Region}
+      Tags: 
+        - Key: "name"
+          Value: "dev-jenkins-ec2"
+    DependsOn:
+      - JenkinsSg
+
+  JenkinsSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Jenkins Workspace SG"
+      GroupName: "jenkins-workspace"
+      SecurityGroupEgress: 
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref IpAddress
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref IpAddress
+      Tags: 
+        - Key: "name"
+          Value: "dev-jenkins-sg"
+      VpcId: !Ref JenkinsVpc
